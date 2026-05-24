@@ -1,4 +1,5 @@
 ﻿import os
+import re
 import subprocess
 import json
 
@@ -85,10 +86,18 @@ class ToolEngine:
 
     def execute_command(self, command: str) -> str:
         """在本地终端执行安全命令"""
-        # 基础的高危操作拦截（生产环境需更严格）
-        forbidden = ["rm -rf /", "mkfs", "dd"]
-        if any(f in command for f in forbidden):
-            return "Error: Command rejected due to security policy."
+        # 基于正则的高危命令拦截，避免子串误匹配
+        forbidden_patterns = [
+            r'\brm\s+(-\w+\s+)*-rf\s*/\s*$',  # rm -rf / 或 rm -rf /path
+            r'\brm\s+(-\w+\s+)*--no-preserve-root',  # --no-preserve-root
+            r'\bmkfs\b',           # 磁盘格式化
+            r'\bdd\s',             # dd if=/dev/... (word-boundary, 不影响 git add 等)
+            r'\bsudo\s+reboot\b',   # 重启
+            r'\bsudo\s+halt\b',     # 关机
+        ]
+        for pattern in forbidden_patterns:
+            if re.search(pattern, command):
+                return "Error: Command rejected due to security policy."
             
         try:
             result = subprocess.run(

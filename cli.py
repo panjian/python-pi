@@ -19,8 +19,7 @@ SLASH_COMMANDS = {
     "/clear": "Clear the conversation history and start fresh",
     "/config": "Show current agent configuration",
     "/tools": "List all available tools",
-    "/exit": "Exit the agent",
-    "/quit": "Exit the agent"
+    "/exit": "Exit the agent"
 }
 
 def print_help():
@@ -35,7 +34,7 @@ def handle_slash_command(command: str, agent: CodingAgent) -> bool:
     """处理斜杠命令，返回 False 表示需要退出程序"""
     cmd = command.strip().lower()
     
-    if cmd in ["/exit", "/quit"]:
+    if cmd == "/exit":
         console.print("[yellow]Goodbye![/yellow]")
         return False
         

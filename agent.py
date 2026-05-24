@@ -6,6 +6,7 @@ from config import settings
 from tools import ToolEngine
 from rich.console import Console
 from rich.panel import Panel
+from rich.markdown import Markdown
 
 console = Console()
 
@@ -81,7 +82,7 @@ class CodingAgent:
         self.history.append(msg)
 
         if msg.content:
-            console.print(Panel(msg.content, title="[bold blue]Agent Thought[/bold blue]", border_style="blue"))
+            console.print(Panel(Markdown(msg.content), title="[bold blue]Agent Thought[/bold blue]", border_style="blue"))
 
         if not msg.tool_calls:
             return False  # 没有工具调用，循环结束
@@ -131,7 +132,7 @@ class CodingAgent:
 
         for block in response.content:
             if block.type == "text":
-                console.print(Panel(block.text, title="[bold magenta]Agent Thought[/bold magenta]", border_style="magenta"))
+                console.print(Panel(Markdown(block.text), title="[bold magenta]Agent Thought[/bold magenta]", border_style="magenta"))
             elif block.type == "tool_use":
                 has_tool_use = True
                 tool_requests.append(block)

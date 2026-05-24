@@ -3,3 +3,5 @@ anthropic>=0.30.0
 rich>=13.7.0
 pydantic-settings>=2.2.0
 prompt_toolkit>=3.0.43
+requests>=2.31.0
+beautifulsoup4>=4.12.0

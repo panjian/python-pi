@@ -168,6 +168,22 @@ class CodingAgent:
         self.history.append({"role": "user", "content": tool_outputs})
         return True
 
+    def _get_summary(self) -> str:
+        """Extract the final text response (summary) from conversation history."""
+        if self.provider == "openai":
+            for msg in reversed(self.history):
+                if isinstance(msg, dict) and msg.get("role") == "assistant" and msg.get("content"):
+                    return msg["content"]
+        else:
+            for msg in reversed(self.history):
+                if isinstance(msg, dict) and msg.get("role") == "assistant":
+                    content = msg.get("content", [])
+                    if isinstance(content, list):
+                        for block in reversed(content):
+                            if getattr(block, "type", None) == "text" and getattr(block, "text", "").strip():
+                                return block.text
+        return "(No text response)"
+
     def run(self, prompt: str, max_steps: int | None = None):
         """主运行循环：默认根据任务执行情况自然停止，可选设置 max_steps 作为安全上限"""
         if self.provider == "openai":

@@ -137,4 +137,110 @@ python cli.py
     本系统采用 Unix/Windows 标准的**隐式虚拟环境调用逻辑**。当你通过快捷键使用绝对路径（如 `venv/bin/python` 或 `venv\Scripts\python.exe`）去引导脚本时，操作系统在初始化进程时会自动将上下文沙箱锁定在该虚拟环境中。这意味着系统会自动加载该环境中已安装的依赖（如 `openai`, `rich` 等），**无需手动显式激活（source activate）**，从而实现了极致流畅的无缝切换。
 2.  **全局密钥读取与本地上下文聚焦**
     在系统的核心层设计中，`config.py` 通过 `os.path.dirname(os.path.abspath(__file__))` 技术锁死了 `.env` 的读取路径，保证大模型密钥始终从安装根目录安全获取；而在 `tools.py` 的设计中，所有涉及文件列出（`list_dir`）、读写（`write_file`）以及命令执行（`execute_command`）的基础相对路径均被锚定为系统当前工作目录 `.`（Current Working Directory）。
-    这带来了一个完美的解耦效果：**“配置和运行依赖锁在全局，而工具的枪口始终瞄准你当前打开终端的本地项目”**。
+    这带来了一个完美的解耦效果：**”配置和运行依赖锁在全局，而工具的枪口始终瞄准你当前打开终端的本地项目”**。
+
+---
+
+## 📱 第五部分：飞书机器人集成（手机端远程控制）
+
+本项目使用飞书官方 SDK（`lark-oapi`）以 WebSocket 长连接模式远程指挥 Agent。WebSocket 模式**无需公网 IP 或域名**。
+
+### 1. 飞书开放平台创建应用
+
+1. 登录 [飞书开放平台](https://open.feishu.cn)，创建**企业自建应用**
+2. 在应用后台 → **机器人** → 启用机器人能力
+3. 在 **权限管理** 中，开通以下权限：
+   - `im:message`（获取与发送单聊、群组消息）
+   - `im:message:send_as_bot`（以机器人身份发消息）
+4. 在 **事件与回调** → **事件订阅** 中：
+   - 添加事件 `im.message.receive_v1`（接收消息）
+   - **连接模式** 选择 **WebSocket 长连接**（不要选 HTTP 回调）
+   - 启用”机器人被单独拉入群聊时接收消息”和”机器人被 @ 时接收消息”
+5. 在 **凭证与基础信息** 中复制 `App ID`（`cli_xxx` 格式）和 `App Secret`
+
+### 2. 配置 `.env`
+
+在 `.env` 文件末尾追加以下配置：
+
+```env
+# 飞书机器人配置
+FEISHU_APP_ID=cli_xxxxxxxxxx
+FEISHU_APP_SECRET=xxxxxxxxxxxxxxxxxxxxxxxx
+
+# 允许的用户 open_id（逗号分隔，留空则允许所有人）
+FEISHU_ALLOWED_USERS=ou_xxxx1,ou_xxxx2
+
+# Agent 工作目录（默认当前目录）
+FEISHU_WORKSPACE_DIR=.
+
+# 单次任务最大步数，0 表示不限制（默认 30）
+FEISHU_MAX_STEPS=0
+```
+
+### 3. 获取你的 `open_id`
+
+`FEISHU_ALLOWED_USERS` 中的 `ou_xxxx` 是你的飞书用户 ID，获取方式：
+
+**方法一：日志反查（最简单）**
+1. 先把 `FEISHU_ALLOWED_USERS=` 留空
+2. 启动 bot，在飞书 App 中给机器人发一条消息
+3. 终端日志会打印发送者 ID：
+   ```
+   Received from ou_aBcDeFgHiJkLmNoP in oc_xxx...: 你好
+   ```
+4. 把 `ou_xxxx` 填入 `.env` 后重启即可
+
+**方法二：API 查询**
+```bash
+# 先获取 token
+curl -X POST https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal \
+  -H “Content-Type: application/json” \
+  -d '{“app_id”:”cli_xxx”,”app_secret”:”xxx”}'
+
+# 用 token 查询 open_id
+curl -X GET “https://open.feishu.cn/open-apis/contact/v3/users/me” \
+  -H “Authorization: Bearer <tenant_access_token>”
+```
+
+### 4. 启动飞书 Bot
+
+```bash
+python feishu_bot.py
+```
+
+启动后日志会显示：
+```
+Connecting to Feishu WebSocket: wss://open.feishu.cn/websocket/cli_xxx...
+Feishu WebSocket authenticated successfully
+Feishu WebSocket subscribed to im.message.receive_v1
+Starting Feishu bot (allowed users: {'ou_xxxx'})
+```
+
+之后在飞书 App 中给机器人发消息即可，例如：
+> “帮我写一个 Python 快排算法并保存为 sort.py”
+> “列出当前目录下的所有 Python 文件”
+> “帮我查一下 requests 库的最新版本”
+
+### 5. 配置说明
+
+| 环境变量 | 说明 | 默认值 |
+|----------|------|--------|
+| `FEISHU_APP_ID` | 飞书应用 App ID | 必填 |
+| `FEISHU_APP_SECRET` | 飞书应用 App Secret | 必填 |
+| `FEISHU_ALLOWED_USERS` | 允许使用的用户 open_id，逗号分隔 | 空（允许所有人） |
+| `FEISHU_WORKSPACE_DIR` | Agent 执行操作的工作目录 | `.`（当前目录） |
+| `FEISHU_MAX_STEPS` | 单次任务最大 ReAct 循环步数，`0` 表示不限制 | `30` |
+
+### 6. 运行模式
+
+飞书 Bot 与本地 TUI CLI **可以并行运行**，互不干扰：
+
+```bash
+# 终端 1：本地 TUI
+python cli.py
+
+# 终端 2：飞书 Bot
+python feishu_bot.py
+```
+
+两者共享同一 `.env` 和代码库，但各自有独立的对话历史和 Agent 实例。飞书 Bot 支持多轮对话 — 同一个聊天会话内，Agent 会保留之前的上下文。

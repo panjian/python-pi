@@ -11,9 +11,9 @@ from rich.markdown import Markdown
 console = Console()
 
 class CodingAgent:
-    def __init__(self):
+    def __init__(self, workspace_dir: str = None):
         self.provider = settings.llm_provider.lower()
-        self.tools = ToolEngine()
+        self.tools = ToolEngine(workspace_dir or ".")
         self.history = []
         
         # 统一的 System Prompt 注入

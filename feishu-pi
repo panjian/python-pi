@@ -1,0 +1,5 @@
+#!/bin/bash
+# Start the Feishu bot using the project's virtual environment Python
+# Resolve to the real script location (follows symlinks)
+SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+"$SCRIPT_DIR/venv/bin/python" "$SCRIPT_DIR/feishu_bot.py" "$@"

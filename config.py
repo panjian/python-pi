@@ -16,7 +16,14 @@ class Settings(BaseSettings):
     
     openai_model: str = "gpt-4o"
     anthropic_model: str = "claude-3-5-sonnet-20241022"
-    
+
+    # Feishu Bot settings
+    feishu_app_id: str = ""
+    feishu_app_secret: str = ""
+    feishu_allowed_users: str = ""
+    feishu_workspace_dir: str = "."
+    feishu_max_steps: int = 30
+
     # 🔥 修改：将 env_file 指向全局固定的 .env 路径
     model_config = SettingsConfigDict(env_file=GLOBAL_ENV_PATH, env_file_encoding="utf-8", extra="ignore")
 

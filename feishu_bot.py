@@ -184,12 +184,16 @@ class FeishuBot:
         return agent._get_summary()
 
     def _step_openai_with_progress(self, agent, callback, step_num) -> bool:
-        response = agent.client.chat.completions.create(
-            model=agent.model,
-            messages=agent.history,
-            tools=agent.tools.get_openai_tools(),
-            tool_choice="auto",
-        )
+        try:
+            response = agent.client.chat.completions.create(
+                model=agent.model,
+                messages=agent.history,
+                tools=agent.tools.get_openai_tools(),
+                tool_choice="auto",
+            )
+        except Exception as e:
+            callback(f"[Error] API call failed: {e}")
+            return False
 
         if not hasattr(response, "choices"):
             callback("[Error] API returned non-standard response")
@@ -240,31 +244,43 @@ class FeishuBot:
         agent.history.append({"role": "assistant", "content": response.content})
 
         has_tool_use = False
+        tool_requests = []
+
         for block in response.content:
             if block.type == "text":
                 callback(f"[Thought] {block.text[:500]}")
             elif block.type == "tool_use":
                 has_tool_use = True
-                name = block.name
-                callback(f"[Tool] Calling {name}({{...}})")
+                tool_requests.append(block)
 
-                try:
-                    func = getattr(agent.tools, name)
-                    observation = func(**block.input)
-                except TypeError as te:
-                    observation = f"Error: Invalid arguments for '{name}'. {te}"
-                except Exception as e:
-                    observation = f"Error executing '{name}': {e}"
+        if not has_tool_use:
+            return False
 
-                callback(f"[Result] {observation[:500]}")
+        tool_outputs = []
+        for tool_use in tool_requests:
+            name = tool_use.name
+            args = tool_use.input
 
-                agent.history.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": observation,
-                })
+            callback(f"[Tool] Calling {name}({{...}})")
 
-        return has_tool_use
+            try:
+                func = getattr(agent.tools, name)
+                observation = func(**args)
+            except TypeError as te:
+                observation = f"Error: Invalid arguments for tool '{name}'. {str(te)}. Please re-call the tool with all required arguments defined in the schema."
+            except Exception as e:
+                observation = f"Error executing tool '{name}': {str(e)}"
+
+            callback(f"[Result] {observation[:500]}")
+
+            tool_outputs.append({
+                "type": "tool_result",
+                "tool_use_id": tool_use.id,
+                "content": observation,
+            })
+
+        agent.history.append({"role": "user", "content": tool_outputs})
+        return True
 
     def _send_final_response(self, chat_id: str, message_id: str, text: str):
         if len(text) <= FEISHU_MAX_TEXT_LENGTH:
